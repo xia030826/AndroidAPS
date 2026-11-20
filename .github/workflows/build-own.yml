@@ -1,0 +1,66 @@
+name: Build My AAPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      buildVariant:
+        description: 'Build variant'
+        required: true
+        default: 'fullRelease'
+        type: choice
+        options:
+          - fullRelease
+          - fullDebug
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode keystore from secret
+        env:
+          S_KS: ${{ secrets.KEYSTORE_SET }}
+        run: |
+          set -e
+          DEC=$(printf '%s' "$S_KS" | base64 -d)
+          printf '%s' "$DEC" | cut -d'|' -f1 | base64 -d > "$RUNNER_TEMP/own.jks"
+          P1=$(printf '%s' "$DEC" | cut -d'|' -f2)
+          P2=$(printf '%s' "$DEC" | cut -d'|' -f3)
+          P3=$(printf '%s' "$DEC" | cut -d'|' -f4)
+          echo "::add-mask::$P1"
+          echo "::add-mask::$P3"
+          echo "KS_PASSWORD=$P1" >> "$GITHUB_ENV"
+          echo "KS_ALIAS=$P2" >> "$GITHUB_ENV"
+          echo "KS_KEYPASS=$P3" >> "$GITHUB_ENV"
+          ls -l "$RUNNER_TEMP/own.jks"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Build APK
+        run: |
+          set -e
+          V="${{ inputs.buildVariant }}"
+          C=$(printf '%s' "${V:0:1}" | tr '[:lower:]' '[:upper:]')
+          V="$C${V:1}"
+          chmod +x gradlew
+          ./gradlew ":app:assemble${V}" \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:+UseParallelGC -Xss2m" \
+            -Dkotlin.daemon.jvm.options="-Xmx2g" \
+            -Dkotlin.compiler.execution.strategy="in-process" \
+            -Dorg.gradle.daemon=false \
+            -Dorg.gradle.caching=true \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/own.jks" \
+            -Pandroid.injected.signing.store.password="$KS_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KS_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KS_KEYPASS"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aaps-apk
+          path: app/build/outputs/apk/**/*.apk
+          retention-days: 1
