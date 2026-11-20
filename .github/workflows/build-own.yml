@@ -49,10 +49,11 @@ jobs:
           V="$C${V:1}"
           chmod +x gradlew
           ./gradlew ":app:assemble${V}" \
-            -Dorg.gradle.jvmargs="-Xmx6g -XX:+UseParallelGC -Xss2m" \
-            -Dkotlin.daemon.jvm.options="-Xmx2g" \
+            -Dorg.gradle.jvmargs="-Xmx8g -XX:+UseParallelGC -Xss4m" \
+            -Dkotlin.daemon.jvm.options="-Xmx3g" \
             -Dkotlin.compiler.execution.strategy="in-process" \
             -Dorg.gradle.daemon=false \
+            -Dorg.gradle.workers.max=8 \
             -Dorg.gradle.caching=true \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/own.jks" \
             -Pandroid.injected.signing.store.password="$KS_PASSWORD" \
